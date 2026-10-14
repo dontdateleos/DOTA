@@ -30,7 +30,7 @@ header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-be
 h1{font:700 30px/1 var(--display);letter-spacing:.02em;margin:0;text-transform:uppercase}
 h1 b{color:var(--gold);font-weight:700}
 .status{font:12px var(--mono);color:var(--muted)}
-.status.err{color:var(--dire)}
+.status.err,.status .err{color:var(--dire)}
 h2{font:700 15px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0}
 section{display:grid;gap:12px;min-width:0}
 .settings{display:flex;flex-wrap:wrap;gap:8px}
@@ -67,6 +67,17 @@ section{display:grid;gap:12px;min-width:0}
 .order i.done.e{background:var(--dire)}
 .order i.cur{outline:1px solid var(--gold);outline-offset:1px}
 .linkbtn{background:none;border:0;color:var(--muted);text-decoration:underline;padding:0;font-size:13px}
+
+/* Quick picks: the top suggestions above the hero grid, so you never scroll during a pick */
+.quick{display:grid;gap:6px}
+.quick-h{font:600 12px var(--body);color:var(--muted)}
+.quick-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.qp{position:relative;padding:0;border:1px solid var(--line);border-radius:5px;background:var(--panel);overflow:hidden;text-align:left;max-width:100%}
+.qp:first-child{border-color:var(--gold)}
+.qp img,.qp .noimg{width:100%;aspect-ratio:16/9;object-fit:cover;display:block}
+.qp .noimg{display:grid;place-items:center;font-size:10px}
+.qp .nm{display:block;font:500 10px/1.2 var(--body);padding:3px 4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qp .sc{display:block;font:700 15px/1.1 var(--display);padding:0 4px 3px;font-variant-numeric:tabular-nums}
 
 /* Picker */
 .tray{display:grid;gap:8px}
@@ -127,7 +138,7 @@ details.more summary{font-size:12px;color:var(--muted);cursor:pointer}
 <div class="wrap">
   <header class="span">
     <h1>Draft <b>Edge</b></h1>
-    <span id="status" class="status">Loading hero stats…</span>
+    <span class="status"><span id="status">Loading hero stats…</span> <span id="muStatus"></span></span>
   </header>
 
   <section class="span">
@@ -156,6 +167,7 @@ details.more summary{font-size:12px;color:var(--muted);cursor:pointer}
       <div class="team bans"><div class="team-h"><span>Bans</span><span class="status">tap a hero to remove</span></div><div class="slots" id="banSlots"></div></div>
     </div>
     <div class="stage"><span id="stageText"></span><span class="order" id="order" aria-hidden="true"></span><button class="linkbtn" id="undo">Undo</button><button class="linkbtn" id="reset">New draft</button></div>
+    <div class="quick" id="quick" hidden></div>
 
     <div class="tray">
       <div class="target" role="group" aria-label="Add tapped hero to">
@@ -182,7 +194,7 @@ const API = "https://api.opendota.com/api";
 const IMG = "https://cdn.cloudflare.steamstatic.com";
 // Ranked All Pick order, 1-2-2-2-2-1. "F" = first-pick team.
 const ORDER = ["F","S","S","F","F","S","S","F","F","S"];
-const STATS_TTL = 12*3600e3, MU_TTL = 24*3600e3;
+const STATS_TTL = 12*3600e3, MU_TTL = 72*3600e3;
 
 const store = {
   get(k){ try{ const v = localStorage.getItem("de:"+k); return v ? JSON.parse(v) : null; }catch(e){ return null; } },
@@ -205,8 +217,8 @@ const pp = x => (x>=0?"+":"")+x.toFixed(1);
 /* ---------- data ---------- */
 async function getJSON(url){
   const r = await fetch(url);
-  if(r.status===429) throw new Error("OpenDota rate limit hit — wait a minute and reload.");
-  if(!r.ok) throw new Error("OpenDota returned "+r.status+".");
+  if(r.status===429) throw Object.assign(new Error("OpenDota rate limit hit — wait a minute and reload."),{status:429});
+  if(!r.ok) throw Object.assign(new Error("OpenDota returned "+r.status+"."),{status:r.status});
   return r.json();
 }
 async function loadStats(){
@@ -227,22 +239,57 @@ function setHeroes(d){
     img: h.img ? IMG+h.img.split("?")[0] : null, raw:h
   })).sort((a,b)=>a.name.localeCompare(b.name));
   S.byId = new Map(S.heroes.map(h=>[h.id,h]));
-  renderAll();
+  renderAll(); prefetchMatchups();
 }
-async function matchups(id){
+function cachedMu(id){
   if(S.mu.has(id)) return S.mu.get(id);
   const c = store.get("mu:"+id);
   if(c && Date.now()-c.t < MU_TTL){ const m = toMap(c.d); S.mu.set(id,m); return m; }
+  return null;
+}
+async function fetchMu(id){
+  const d = await getJSON(API+"/heroes/"+id+"/matchups");
+  const rows = d.map(x=>[x.hero_id,x.games_played,x.wins]); // compact so every hero fits in localStorage
+  store.set("mu:"+id,{t:Date.now(),d:rows}); const m = toMap(rows); S.mu.set(id,m); return m;
+}
+async function matchups(id){
+  const m = cachedMu(id); if(m) return m;
   if(S.muPending.has(id)) return null;
   S.muPending.add(id);
-  try{
-    const d = await getJSON(API+"/heroes/"+id+"/matchups");
-    store.set("mu:"+id,{t:Date.now(),d}); const m = toMap(d); S.mu.set(id,m); return m;
-  }catch(e){ setStatus(e.message,true); return null; }
+  try{ return await fetchMu(id); }
+  catch(e){ setStatus(e.message,true); return null; }
   finally{ S.muPending.delete(id); }
 }
 // map: opponentId -> {g, w} where w = wins of the owner hero vs opponent
-const toMap = d => new Map(d.map(x=>[x.hero_id,{g:x.games_played,w:x.wins}]));
+const toMap = d => new Map(d.map(x=>Array.isArray(x)?[x[0],{g:x[1],w:x[2]}]:[x.hero_id,{g:x.games_played,w:x.wins}]));
+// A pick turn is ~30 s, too short to wait on the network. Load every hero's matchups up front
+// (popular heroes first), slowly enough to stay under OpenDota's free limit of 60 calls a minute.
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+let prefetching = false;
+async function prefetchMatchups(){
+  if(prefetching || !S.heroes.length) return; prefetching = true;
+  const ids = [...S.heroes].sort((a,b)=>(b.raw.pub_pick||0)-(a.raw.pub_pick||0)).map(h=>h.id);
+  const todo = ids.filter(id=>!cachedMu(id));
+  const show = () => { const n = ids.filter(id=>S.mu.has(id)).length;
+    $("muStatus").textContent = n>=ids.length ? "· draft data ready" : `· loading draft data ${n}/${ids.length}`; };
+  show(); renderSugs();
+  for(let i=0;i<todo.length;i++){
+    const id = todo[i];
+    if(S.mu.has(id) || S.muPending.has(id)) continue;
+    await sleep(1300);
+    if(S.mu.has(id)) continue;
+    S.muPending.add(id);
+    try{ await fetchMu(id); }
+    catch(e){
+      if(e.status===429){ await sleep(60e3); i--; continue; }
+      $("muStatus").textContent = "· draft data incomplete (offline?)"; prefetching = false; return;
+    }
+    finally{ S.muPending.delete(id); }
+    show();
+    if(S.enemy.includes(id) || i%10===9 || i===todo.length-1) renderSugs();
+  }
+  show(); prefetching = false;
+}
 
 /* ---------- builds ---------- */
 S.itemIds = null; S.pop = new Map(); S.openBuild = new Set();
@@ -469,6 +516,10 @@ function renderSugs(){
   const title = st.next==="enemy" ? "Best picks for your next turn" : "Best picks right now";
   $("sugTitle").textContent = title + (S.pos!=="any" ? " · pos "+S.pos : "");
   const missing = S.enemy.filter(id=>!S.mu.has(id));
+  const top = S.ally.length<5 ? out.slice(0,5) : [];
+  $("quick").hidden = !top.length;
+  if(top.length) $("quick").innerHTML = `<div class="quick-h">${st.next==="enemy"?"Your next pick":"Pick now"} · tap to lock in for your team</div><div class="quick-row">`+
+    top.map(r=>`<button class="qp" data-pick="${r.C.id}" aria-label="Lock in ${esc(r.C.name)}">${heroImg(r.C)}<span class="nm">${esc(r.C.name)}</span><span class="sc">${pp(r.total)}</span></button>`).join("")+`</div>`;
   if(S.ally.length>=5){ $("sugs").innerHTML = `<li class="empty">Your team is locked in. Start a new draft when the next game begins.</li>`; return; }
   if(!out.length){ $("sugs").innerHTML = `<li class="empty">No heroes left for this filter. ${S.poolOnly?"Add more heroes to your pool or turn off “My pool only”.":"Try a different position."}</li>`; return; }
   $("sugs").innerHTML = (missing.length?`<li class="empty">Fetching matchups for ${missing.length} enemy pick${missing.length>1?"s":""}…</li>`:"") + out.slice(0,10).map((r,i)=>{
@@ -512,6 +563,7 @@ function remove(side,id){
 }
 document.addEventListener("click",e=>{
   const h = e.target.closest(".h"); if(h){ add(+h.dataset.id); return; }
+  const qp = e.target.closest("[data-pick]"); if(qp){ S.target="ally"; add(+qp.dataset.pick); return; }
   const rm = e.target.closest("[data-rm]"); if(rm){ const [s,i]=rm.dataset.rm.split(":"); remove(s,+i); return; }
   const tg = e.target.closest("[data-target]"); if(tg){ S.target=tg.dataset.target; renderAll(); $("q").focus(); return; }
   const t = e.target.closest(".target button"); if(t){ S.target=t.dataset.t; renderAll(); return; }
