@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e1311">
+<title>Draft Edge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column on phones — draft board on top, add-hero tray, ranked suggestions below. Two columns on wide screens. Deliberately dark-only (played at night, next to the client). */
+:root{
+  --bg:#0e1311; --panel:#161d1a; --line:#26302c; --fg:#e4e9e5; --muted:#8c9a93;
+  --radiant:#6cc47a; --dire:#e0644c; --gold:#e3b04b; --ban:#7d8590;
+  --display:"Saira Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 var(--body)}
+body{padding:calc(env(safe-area-inset-top,0px) + 12px) 16px calc(env(safe-area-inset-bottom,0px) + 32px)}
+[hidden]{display:none!important}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:16px}
+@media(min-width:900px){.wrap{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}.span{grid-column:1/-1}}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px}
+h1{font:700 30px/1 var(--display);letter-spacing:.02em;margin:0;text-transform:uppercase}
+h1 b{color:var(--gold);font-weight:700}
+.status{font:12px var(--mono);color:var(--muted)}
+.status.err{color:var(--dire)}
+h2{font:700 15px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0}
+section{display:grid;gap:12px;min-width:0}
+.settings{display:flex;flex-wrap:wrap;gap:8px}
+.chip-sel{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:13px}
+.chip-sel label{color:var(--muted)}
+.chip-sel select{background:transparent;border:0;padding:2px 0}
+.chip-sel select option{background:var(--panel)}
+.toggle{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:13px}
+.toggle[aria-pressed="true"]{border-color:var(--gold);color:var(--gold)}
+
+/* Board */
+.board{display:grid;gap:10px}
+.team{display:grid;gap:6px}
+.team-h{display:flex;justify-content:space-between;align-items:baseline;font:600 13px var(--body)}
+.team.ally .team-h span:first-child{color:var(--radiant)}
+.team.enemy .team-h span:first-child{color:var(--dire)}
+.team.bans .team-h span:first-child{color:var(--ban)}
+.slots{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.bans .slots{grid-template-columns:repeat(auto-fill,minmax(52px,1fr))}
+.slot{aspect-ratio:16/9;border-radius:5px;border:1px dashed var(--line);background:var(--panel);position:relative;overflow:hidden;padding:0;max-width:100%}
+.slot img{width:100%;height:100%;object-fit:cover;display:block}
+.slot .nm{position:absolute;inset:auto 0 0 0;font:500 10px/1.2 var(--body);padding:2px 3px;background:linear-gradient(transparent,rgba(0,0,0,.85));text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ally .slot.filled{border:1px solid var(--radiant)}
+.enemy .slot.filled{border:1px solid var(--dire)}
+.bans .slot.filled{border:1px solid var(--ban);filter:grayscale(1)}
+.slot.next{border-style:solid;border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+.stage{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:13px;color:var(--muted)}
+.stage strong{color:var(--fg);font-weight:600}
+.order{display:flex;gap:3px}
+.order i{width:14px;height:6px;border-radius:2px;background:var(--line)}
+.order i.a{background:color-mix(in srgb,var(--radiant) 40%,var(--line))}
+.order i.e{background:color-mix(in srgb,var(--dire) 40%,var(--line))}
+.order i.done.a{background:var(--radiant)}
+.order i.done.e{background:var(--dire)}
+.order i.cur{outline:1px solid var(--gold);outline-offset:1px}
+.linkbtn{background:none;border:0;color:var(--muted);text-decoration:underline;padding:0;font-size:13px}
+
+/* Picker */
+.tray{display:grid;gap:8px}
+.target{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.target button{background:var(--panel);border:0;border-right:1px solid var(--line);padding:8px 4px;font-size:13px;font-weight:600;color:var(--muted)}
+.target button:last-child{border-right:0}
+.target button[aria-pressed="true"][data-t="ally"]{background:color-mix(in srgb,var(--radiant) 22%,var(--panel));color:var(--radiant)}
+.target button[aria-pressed="true"][data-t="enemy"]{background:color-mix(in srgb,var(--dire) 22%,var(--panel));color:var(--dire)}
+.target button[aria-pressed="true"][data-t="ban"]{background:color-mix(in srgb,var(--ban) 25%,var(--panel));color:var(--fg)}
+.target button[aria-pressed="true"][data-t="pool"]{background:color-mix(in srgb,var(--gold) 20%,var(--panel));color:var(--gold)}
+#q{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px;font-size:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:5px;max-height:310px;overflow-y:auto;padding-right:2px}
+.h{position:relative;padding:0;border:1px solid transparent;border-radius:4px;background:var(--panel);overflow:hidden;aspect-ratio:16/9;max-width:100%}
+.h img{width:100%;height:100%;object-fit:cover;display:block}
+.h .nm{position:absolute;inset:auto 0 0 0;font:500 9px/1.15 var(--body);padding:1px 2px;background:rgba(0,0,0,.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.h.taken{opacity:.22}
+.h.pool::after{content:"★";position:absolute;top:0;right:2px;color:var(--gold);font-size:11px;text-shadow:0 0 2px #000}
+.h .noimg{display:grid;place-items:center;height:100%;font-size:10px;padding:2px}
+
+/* Suggestions */
+.sugs{display:grid;gap:6px;list-style:none;margin:0;padding:0}
+.sug{display:grid;grid-template-columns:28px 72px minmax(0,1fr) auto;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.sug .rk{font:700 18px var(--display);color:var(--muted);text-align:center}
+.sug:first-child .rk{color:var(--gold)}
+.sug .pic{width:72px;aspect-ratio:16/9;border-radius:3px;overflow:hidden;background:var(--line)}
+.sug .pic img{width:100%;height:100%;object-fit:cover;display:block}
+.sug .main{min-width:0}
+.sug .name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sug .why{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.tag{font:500 11px/1 var(--mono);padding:3px 5px;border-radius:3px;background:var(--line);color:var(--muted);white-space:nowrap}
+.tag.good{color:var(--radiant);background:color-mix(in srgb,var(--radiant) 14%,var(--panel))}
+.tag.bad{color:var(--dire);background:color-mix(in srgb,var(--dire) 14%,var(--panel))}
+.tag.gold{color:var(--gold);background:color-mix(in srgb,var(--gold) 14%,var(--panel))}
+.sug .score{font:700 22px/1 var(--display);text-align:right;font-variant-numeric:tabular-nums}
+.sug .score small{display:block;font:11px var(--mono);color:var(--muted)}
+.sug .add{grid-column:1/-1;display:none}
+details.more{grid-column:1/-1}
+details.more summary{font-size:12px;color:var(--muted);cursor:pointer}
+.vs{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:2px 12px;font:12px var(--mono);margin-top:6px;font-variant-numeric:tabular-nums}
+.vs .p{color:var(--radiant)}.vs .n{color:var(--dire)}
+.build{display:grid;gap:8px;margin-top:8px}
+.phase{display:grid;grid-template-columns:62px minmax(0,1fr);gap:8px;align-items:start}
+.phase>span{font:600 11px/1.6 var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.items{display:flex;flex-wrap:wrap;gap:4px}
+.it{display:flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:2px 6px 2px 2px;font-size:11px;max-width:100%}
+.it img{width:30px;height:22px;object-fit:cover;border-radius:2px;flex:none}
+.it b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it em{font:10px var(--mono);font-style:normal;color:var(--muted)}
+.it.sit{border-color:color-mix(in srgb,var(--gold) 55%,var(--line))}
+.it.sit em{color:var(--gold)}
+.it.have{border-color:color-mix(in srgb,var(--radiant) 55%,var(--line))}
+.empty{color:var(--muted);font-size:14px;background:var(--panel);border:1px dashed var(--line);border-radius:6px;padding:14px}
+.note{font-size:12px;color:var(--muted);max-width:68ch}
+@media(prefers-reduced-motion:no-preference){.sug{transition:transform .15s}.h:active,.slot:active{transform:scale(.96)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="span">
+    <h1>Draft <b>Edge</b></h1>
+    <span id="status" class="status">Loading hero stats…</span>
+  </header>
+
+  <section class="span">
+    <div class="settings">
+      <div class="chip-sel"><label for="bracket">Rank</label>
+        <select id="bracket">
+          <option value="0">All ranks</option><option value="1">Herald</option><option value="2">Guardian</option>
+          <option value="3">Crusader</option><option value="4">Archon</option><option value="5">Legend</option>
+          <option value="6">Ancient</option><option value="7">Divine</option><option value="8">Immortal</option>
+        </select></div>
+      <div class="chip-sel"><label for="pos">Position</label>
+        <select id="pos">
+          <option value="any">Any</option><option value="1">1 · Carry</option><option value="2">2 · Mid</option>
+          <option value="3">3 · Offlane</option><option value="4">4 · Soft support</option><option value="5">5 · Hard support</option>
+        </select></div>
+      <div class="chip-sel"><label for="first">We pick</label>
+        <select id="first"><option value="1">First</option><option value="0">Second</option></select></div>
+      <button class="toggle" id="poolOnly" aria-pressed="false">★ My pool only</button>
+    </div>
+  </section>
+
+  <section aria-label="Draft board">
+    <div class="board">
+      <div class="team ally"><div class="team-h"><span>Your team</span><span id="allyN" class="status"></span></div><div class="slots" id="allySlots"></div></div>
+      <div class="team enemy"><div class="team-h"><span>Enemy</span><span id="enemyN" class="status"></span></div><div class="slots" id="enemySlots"></div></div>
+      <div class="team bans"><div class="team-h"><span>Bans</span><span class="status">tap a hero to remove</span></div><div class="slots" id="banSlots"></div></div>
+    </div>
+    <div class="stage"><span id="stageText"></span><span class="order" id="order" aria-hidden="true"></span><button class="linkbtn" id="undo">Undo</button><button class="linkbtn" id="reset">New draft</button></div>
+
+    <div class="tray">
+      <div class="target" role="group" aria-label="Add tapped hero to">
+        <button data-t="ally" aria-pressed="true">Ally</button>
+        <button data-t="enemy" aria-pressed="false">Enemy</button>
+        <button data-t="ban" aria-pressed="false">Ban</button>
+        <button data-t="pool" aria-pressed="false">★ Pool</button>
+      </div>
+      <input id="q" type="search" placeholder="Search heroes (e.g. 'am', 'crystal')" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="grid" id="grid" aria-label="Heroes"></div>
+    </div>
+  </section>
+
+  <section aria-label="Suggestions">
+    <h2 id="sugTitle">Best picks right now</h2>
+    <ol class="sugs" id="sugs"><li class="empty">Hero data is loading from OpenDota. Suggestions appear here once it arrives.</li></ol>
+    <p class="note">Score is in win-rate points. It adds your rank's win rate (above 50%), matchups against the enemy picks, how the hero fills gaps in your team, and, for early picks, how often popular heroes punish it. Matchup data covers all ranks of public matches. Positions are approximate because OpenDota tags roles, not lanes.</p>
+  </section>
+</div>
+
+<script>
+"use strict";
+const API = "https://api.opendota.com/api";
+const IMG = "https://cdn.cloudflare.steamstatic.com";
+// Ranked All Pick order, 1-2-2-2-2-1. "F" = first-pick team.
+const ORDER = ["F","S","S","F","F","S","S","F","F","S"];
+const STATS_TTL = 12*3600e3, MU_TTL = 24*3600e3;
+
+const store = {
+  get(k){ try{ const v = localStorage.getItem("de:"+k); return v ? JSON.parse(v) : null; }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem("de:"+k, JSON.stringify(v)); }catch(e){} }
+};
+
+const S = {
+  heroes: [], byId: new Map(), mu: new Map(), muPending: new Set(),
+  ally: [], enemy: [], ban: [], log: [],
+  target: "ally", q: "",
+  bracket: store.get("bracket") ?? "0", pos: store.get("pos") ?? "any",
+  first: store.get("first") ?? "1", poolOnly: !!store.get("poolOnly"),
+  pool: new Set(store.get("pool") || [])
+};
+
+const $ = id => document.getElementById(id);
+const pct = x => (x*100).toFixed(1)+"%";
+const pp = x => (x>=0?"+":"")+x.toFixed(1);
+
+/* ---------- data ---------- */
+async function getJSON(url){
+  const r = await fetch(url);
+  if(r.status===429) throw new Error("OpenDota rate limit hit — wait a minute and reload.");
+  if(!r.ok) throw new Error("OpenDota returned "+r.status+".");
+  return r.json();
+}
+async function loadStats(){
+  const c = store.get("heroStats");
+  if(c && Date.now()-c.t < STATS_TTL){ setHeroes(c.d); setStatus("Stats from "+ago(c.t)); refreshStale(c); return; }
+  try{
+    const d = await getJSON(API+"/heroStats");
+    store.set("heroStats",{t:Date.now(),d}); setHeroes(d); setStatus("Live stats · just now");
+  }catch(e){
+    if(c){ setHeroes(c.d); setStatus("Offline — using stats from "+ago(c.t), true); }
+    else setStatus("Couldn't reach OpenDota. "+e.message, true);
+  }
+}
+function refreshStale(){} // cached data is fresh enough; kept as a hook
+function setHeroes(d){
+  S.heroes = d.map(h=>({
+    id:h.id, name:h.localized_name, roles:h.roles||[], attr:h.primary_attr,
+    img: h.img ? IMG+h.img.split("?")[0] : null, raw:h
+  })).sort((a,b)=>a.name.localeCompare(b.name));
+  S.byId = new Map(S.heroes.map(h=>[h.id,h]));
+  renderAll();
+}
+async function matchups(id){
+  if(S.mu.has(id)) return S.mu.get(id);
+  const c = store.get("mu:"+id);
+  if(c && Date.now()-c.t < MU_TTL){ const m = toMap(c.d); S.mu.set(id,m); return m; }
+  if(S.muPending.has(id)) return null;
+  S.muPending.add(id);
+  try{
+    const d = await getJSON(API+"/heroes/"+id+"/matchups");
+    store.set("mu:"+id,{t:Date.now(),d}); const m = toMap(d); S.mu.set(id,m); return m;
+  }catch(e){ setStatus(e.message,true); return null; }
+  finally{ S.muPending.delete(id); }
+}
+// map: opponentId -> {g, w} where w = wins of the owner hero vs opponent
+const toMap = d => new Map(d.map(x=>[x.hero_id,{g:x.games_played,w:x.wins}]));
+
+/* ---------- builds ---------- */
+S.itemIds = null; S.pop = new Map(); S.openBuild = new Set();
+async function itemIds(){
+  if(S.itemIds) return S.itemIds;
+  const c = store.get("itemIds");
+  if(c && Date.now()-c.t < 7*864e5){ S.itemIds = c.d; return c.d; }
+  const d = await getJSON(API+"/constants/item_ids"); // {"1":"blink", ...}
+  store.set("itemIds",{t:Date.now(),d}); S.itemIds = d; return d;
+}
+async function itemPop(id){
+  if(S.pop.has(id)) return S.pop.get(id);
+  const c = store.get("pop:"+id);
+  if(c && Date.now()-c.t < MU_TTL){ S.pop.set(id,c.d); return c.d; }
+  const d = await getJSON(API+"/heroes/"+id+"/itemPopularity");
+  store.set("pop:"+id,{t:Date.now(),d}); S.pop.set(id,d); return d;
+}
+const ITEM_NAMES = {bfury:"Battle Fury",ultimate_scepter:"Aghanim's Scepter",aghanims_shard:"Aghanim's Shard",travel_boots:"Boots of Travel",
+  blink:"Blink Dagger",cyclone:"Eul's Scepter",ward_observer:"Observer Ward",ward_sentry:"Sentry Ward",tpscroll:"Town Portal",flask:"Healing Salve",
+  sheepstick:"Scythe of Vyse",invis_sword:"Shadow Blade",lesser_crit:"Crystalys",greater_crit:"Daedalus",heart:"Heart of Tarrasque",
+  basher:"Skull Basher",abyssal_blade:"Abyssal Blade",ancient_janggo:"Drum of Endurance",vladmir:"Vladmir's Offering",black_king_bar:"Black King Bar",
+  monkey_king_bar:"Monkey King Bar",skadi:"Eye of Skadi",sphere:"Linken's Sphere",assault:"Assault Cuirass",shivas_guard:"Shiva's Guard",
+  gem:"Gem of True Sight",dust:"Dust of Appearance",ghost:"Ghost Scepter",gungir:"Gleipnir",medallion_of_courage:"Medallion of Courage",
+  sange_and_yasha:"Sange and Yasha",kaya_and_sange:"Kaya and Sange",yasha_and_kaya:"Yasha and Kaya",manta:"Manta Style",
+  helm_of_the_overlord:"Helm of the Overlord",helm_of_the_dominator:"Helm of the Dominator",magic_wand:"Magic Wand",
+  wind_waker:"Wind Waker",rod_of_atos:"Rod of Atos",hand_of_midas:"Hand of Midas",boots:"Boots of Speed",orb_of_venom:"Orb of Venom",
+  enchanted_mango:"Enchanted Mango",smoke_of_deceit:"Smoke of Deceit",branches:"Iron Branch",circlet:"Circlet",slippers:"Slippers of Agility",
+  mantle:"Mantle of Intelligence",gauntlets:"Gauntlets of Strength",ring_of_protection:"Ring of Protection",blight_stone:"Blight Stone",
+  boots_of_bearing:"Boots of Bearing",guardian_greaves:"Guardian Greaves",pipe:"Pipe of Insight",spirit_vessel:"Spirit Vessel",
+  urn_of_shadows:"Urn of Shadows",lotus_orb:"Lotus Orb",silver_edge:"Silver Edge",nullifier:"Nullifier",refresher:"Refresher Orb",
+  octarine_core:"Octarine Core",aeon_disk:"Aeon Disk",dagon_5:"Dagon",ethereal_blade:"Ethereal Blade",force_staff:"Force Staff",
+  glimmer_cape:"Glimmer Cape",heavens_halberd:"Heaven's Halberd",mjollnir:"Mjollnir",maelstrom:"Maelstrom",radiance:"Radiance",
+  desolator:"Desolator",butterfly:"Butterfly",satanic:"Satanic",bloodthorn:"Bloodthorn",orchid:"Orchid Malevolence"};
+const itemName = k => ITEM_NAMES[k] || k.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+const itemImg = k => `${IMG}/apps/dota2/images/dota_react/items/${k}.png`;
+
+// Situational items: hand-written rules keyed on enemy hero names (OpenDota has no
+// matchup-conditioned item data). core = items for pos 1-3, sup = items for pos 4-5.
+const COUNTERS = [
+  {why:"evasion", heroes:["Phantom Assassin","Windranger","Brewmaster"], core:["monkey_king_bar","bloodthorn"], sup:["rod_of_atos"]},
+  {why:"illusions", heroes:["Phantom Lancer","Naga Siren","Chaos Knight","Terrorblade","Meepo","Arc Warden"], core:["mjollnir","bfury","radiance"], sup:["shivas_guard"]},
+  {why:"invisibility", heroes:["Riki","Bounty Hunter","Clinkz","Weaver","Nyx Assassin","Mirana","Invoker","Sand King","Templar Assassin","Void Spirit"], core:["gem"], sup:["dust","ward_sentry","gem"]},
+  {why:"magic burst", heroes:["Zeus","Lina","Lion","Skywrath Mage","Leshrac","Tinker","Queen of Pain","Pugna","Storm Spirit","Ancient Apparition","Puck","Invoker","Death Prophet"], core:["black_king_bar"], sup:["glimmer_cape","pipe"]},
+  {why:"healing & saves", heroes:["Necrophos","Alchemist","Huskar","Morphling","Omniknight","Oracle","Dazzle","Undying","Abaddon","Io","Wraith King","Warlock","Treant Protector"], core:["skadi","shivas_guard"], sup:["spirit_vessel"]},
+  {why:"passives to break", heroes:["Phantom Assassin","Bristleback","Spectre","Faceless Void","Slardar","Huskar","Medusa","Timbersaw","Ursa","Viper","Troll Warlord","Anti-Mage"], core:["silver_edge"], sup:[]},
+  {why:"dispellable saves", heroes:["Oracle","Omniknight","Abaddon","Dazzle","Necrophos","Pugna","Winter Wyvern"], core:["nullifier"], sup:[]},
+  {why:"single-target lockdown", heroes:["Doom","Legion Commander","Lion","Shadow Shaman","Bane","Batrider","Pudge"], core:["sphere"], sup:["lotus_orb","force_staff"]},
+  {why:"right-click carries", heroes:["Ursa","Troll Warlord","Slark","Juggernaut","Faceless Void","Sven","Lifestealer","Monkey King"], core:["assault","butterfly"], sup:["ghost","force_staff"]},
+];
+function situational(C){
+  const sup = C.roles.includes("Support") && !C.roles.includes("Carry") || ["4","5"].includes(S.pos);
+  const names = S.enemy.map(id=>S.byId.get(id).name);
+  const out = new Map(); // item -> reasons
+  for(const r of COUNTERS){
+    const hit = names.filter(n=>r.heroes.includes(n));
+    if(!hit.length) continue;
+    for(const k of (sup?r.sup:r.core)){ if(!out.has(k)) out.set(k,[]); out.get(k).push(...hit); }
+  }
+  return [...out].map(([k,hs])=>({k, hs:[...new Set(hs)]})).sort((a,b)=>b.hs.length-a.hs.length).slice(0,5);
+}
+function topItems(obj, ids, n){
+  if(!obj) return [];
+  const rows = Object.entries(obj).map(([id,c])=>({k:ids[id], c})).filter(x=>x.k && !x.k.startsWith("recipe_"));
+  const total = rows.reduce((s,x)=>s+x.c,0) || 1;
+  return rows.sort((a,b)=>b.c-a.c).slice(0,n).map(x=>({...x, share:x.c/total}));
+}
+function itemChip(k, sub, cls){
+  return `<span class="it ${cls||""}" title="${esc(itemName(k))}"><img src="${itemImg(k)}" alt="" loading="lazy" onerror="this.remove()"><b>${esc(itemName(k))}</b>${sub?`<em>${esc(sub)}</em>`:""}</span>`;
+}
+function buildHTML(C){
+  const pop = S.pop.get(C.id), ids = S.itemIds;
+  if(!pop || !ids) return `<p class="status">Loading build…</p>`;
+  const phases = [["Start","start_game_items",6],["Early","early_game_items",5],["Mid","mid_game_items",5],["Late","late_game_items",5]];
+  const popular = new Set();
+  let html = phases.map(([lab,key,n])=>{
+    const its = topItems(pop[key], ids, n); its.forEach(x=>popular.add(x.k));
+    return its.length ? `<div class="phase"><span>${lab}</span><div class="items">${its.map(x=>itemChip(x.k, Math.round(x.share*100)+"%")).join("")}</div></div>` : "";
+  }).join("");
+  const sit = situational(C);
+  if(sit.length) html += `<div class="phase"><span>Vs this lineup</span><div class="items">${sit.map(s=>itemChip(s.k,"vs "+s.hs.join(", "), popular.has(s.k)?"sit have":"sit")).join("")}</div></div>`;
+  else if(S.enemy.length) html += `<div class="phase"><span>Vs this lineup</span><div class="items"><span class="status">No special counter items needed yet.</span></div></div>`;
+  return `<div class="build">${html}</div>`;
+}
+async function loadBuild(id){
+  try{ await Promise.all([itemIds(), itemPop(id)]); }
+  catch(e){ setStatus(e.message,true); }
+  renderSugs();
+}
+
+/* ---------- scoring ---------- */
+function wr(h, bracket){
+  const r = h.raw;
+  const p = bracket==="0" ? r.pub_pick : r[bracket+"_pick"];
+  const w = bracket==="0" ? r.pub_win : r[bracket+"_win"];
+  if(!p) return {wr:.5, n:0, pick:0};
+  return { wr:(w + .5*400)/(p+400), n:p, pick:p }; // shrink small samples toward 50%
+}
+const pubWR = h => wr(h,"0").wr;
+// Advantage of hero C against E in win-rate points, normalised for both heroes' overall strength.
+function adv(C, E, muE, muC){
+  let g, cw;
+  if(muE && muE.has(C.id)){ const m = muE.get(C.id); g = m.g; cw = g - m.w; }
+  else if(muC && muC.has(E.id)){ const m = muC.get(E.id); g = m.g; cw = m.w; }
+  else return null;
+  const bC = pubWR(C), bE = pubWR(E);
+  const expected = bC - (bE - .5);
+  const k = 150; // shrink thin matchups toward expectation
+  const obs = (cw + k*expected)/(g + k);
+  return { d:(obs-expected)*100, g };
+}
+const POS = {
+  "1": h => h.roles.includes("Carry"),
+  "2": h => (h.roles.includes("Nuker")||h.roles.includes("Carry")) && !(h.roles.includes("Support") && !h.roles.includes("Carry")) ,
+  "3": h => h.roles.includes("Initiator") || h.roles.includes("Durable"),
+  "4": h => h.roles.includes("Support") || (h.roles.includes("Initiator") && h.roles.includes("Disabler") && !h.roles.includes("Carry")),
+  "5": h => h.roles.includes("Support")
+};
+function teamFit(C, allies){
+  const has = r => allies.filter(a=>a.roles.includes(r)).length;
+  let f = 0; const notes = [];
+  if(!allies.length) return {f, notes};
+  if(has("Disabler")===0 && C.roles.includes("Disabler")){ f+=.8; notes.push("adds disable"); }
+  if(has("Initiator")===0 && C.roles.includes("Initiator")){ f+=.8; notes.push("adds initiation"); }
+  if(has("Support")===0 && allies.length>=2 && C.roles.includes("Support")){ f+=.7; notes.push("team needs support"); }
+  if(has("Carry")===0 && allies.length>=2 && C.roles.includes("Carry")){ f+=.7; notes.push("team needs a carry"); }
+  if(has("Durable")===0 && allies.length>=3 && C.roles.includes("Durable")){ f+=.5; notes.push("adds frontline"); }
+  const pureCarry = C.roles.includes("Carry") && !C.roles.includes("Support");
+  if(has("Carry")>=3 && pureCarry){ f-=1.2; notes.push("too many cores"); }
+  return {f, notes};
+}
+function stageInfo(){
+  const weFirst = S.first==="1";
+  const picks = S.ally.length + S.enemy.length;
+  const ourIdx = S.ally.length + 1; // pick number we're scoring for
+  const nE = S.enemy.length;
+  let label, wBase=1, wCounter=1, wBlind=0;
+  if(S.ally.length>=5){ label="Draft complete"; }
+  else if(nE===0){ label="Blind pick · no enemy info"; wBlind=1; }
+  else if(nE<=2 && ourIdx<=2){ label="Early pick · "+nE+" enemy known"; wBlind=.6; }
+  else if(ourIdx===5 && nE>=5){ label="Last pick · full counter"; wBase=.7; wCounter=1.3; }
+  else { label="Mid draft · "+nE+" enemies known"; wBlind=nE<=2?.3:0; }
+  // whose turn per 1-2-2-2-2-1
+  let next = null;
+  if(picks<10){
+    // Assign recorded picks to order slots greedily so manual corrections still work.
+    let a=S.ally.length, e=S.enemy.length; const our = weFirst?"F":"S";
+    for(const s of ORDER){ if(s===our){ if(a>0) a--; else { next="ally"; break; } } else { if(e>0) e--; else { next="enemy"; break; } } }
+  }
+  return {label, wBase, wCounter, wBlind, next, ourIdx};
+}
+function score(){
+  const st = stageInfo();
+  const taken = new Set([...S.ally,...S.enemy,...S.ban]);
+  const allies = S.ally.map(id=>S.byId.get(id)), enemies = S.enemy.map(id=>S.byId.get(id));
+  let cands = S.heroes.filter(h=>!taken.has(h.id));
+  if(S.pos!=="any") cands = cands.filter(POS[S.pos]);
+  if(S.poolOnly && S.pool.size) cands = cands.filter(h=>S.pool.has(h.id));
+  const out = cands.map(C=>{
+    const b = wr(C,S.bracket);
+    const base = (b.wr-.5)*100;
+    const vs = enemies.map(E=>({E, a:adv(C,E,S.mu.get(E.id),S.mu.get(C.id))}));
+    const counter = vs.reduce((s,x)=>s+(x.a?x.a.d:0),0);
+    const fit = teamFit(C, allies);
+    return {C, b, base, vs, counter, fit, blind:null,
+      total: base*st.wBase + counter*st.wCounter + fit.f};
+  });
+  out.sort((x,y)=>y.total-x.total);
+  // Blind-pick safety: for the top candidates, how badly do popular heroes beat them?
+  if(st.wBlind>0){
+    const pickTotal = S.heroes.reduce((s,h)=>s+(h.raw.pub_pick||0),0);
+    for(const r of out.slice(0,15)){
+      const muC = S.mu.get(r.C.id);
+      if(!muC){ matchups(r.C.id).then(m=>m&&renderSugs()); continue; }
+      let risk=0;
+      for(const E of S.heroes){ if(E.id===r.C.id || taken.has(E.id)) continue;
+        const a = adv(r.C,E,null,muC); if(!a) continue;
+        const share = (E.raw.pub_pick||0)/pickTotal;
+        if(a.d < -1.5) risk += share*(-a.d);
+      }
+      r.blind = risk*10; // ~ win-rate points lost to likely counter-picks
+      r.total -= r.blind*st.wBlind;
+    }
+    out.sort((x,y)=>y.total-x.total);
+  }
+  return {st, out};
+}
+
+/* ---------- render ---------- */
+function heroImg(h, cls){
+  return h.img ? `<img src="${h.img}" alt="" loading="lazy" decoding="async" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'noimg',textContent:${JSON.stringify(h.name)}}))">` : `<span class="noimg">${esc(h.name)}</span>`;
+}
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function renderBoard(st){
+  const slots = (arr, n, side) => {
+    let html = "";
+    for(let i=0;i<n;i++){
+      const h = arr[i] && S.byId.get(arr[i]);
+      const nxt = !h && i===arr.length && st.next===side ? " next" : "";
+      html += h ? `<button class="slot filled" data-rm="${side}:${h.id}" aria-label="Remove ${esc(h.name)}">${heroImg(h)}<span class="nm">${esc(h.name)}</span></button>`
+                : `<button class="slot${nxt}" data-target="${side}" aria-label="Add to ${side}"></button>`;
+    }
+    return html;
+  };
+  $("allySlots").innerHTML = slots(S.ally,5,"ally");
+  $("enemySlots").innerHTML = slots(S.enemy,5,"enemy");
+  $("banSlots").innerHTML = S.ban.length ? S.ban.map(id=>{const h=S.byId.get(id);return `<button class="slot filled" data-rm="ban:${id}" aria-label="Remove ban ${esc(h.name)}">${heroImg(h)}</button>`;}).join("") : `<span class="status">None yet — switch to Ban and tap heroes.</span>`;
+  $("allyN").textContent = S.ally.length+"/5"; $("enemyN").textContent = S.enemy.length+"/5";
+  const turn = st.next==="ally" ? "<strong>Your team</strong> picks next" : st.next==="enemy" ? "<strong>Enemy</strong> picks next" : "<strong>All picks in</strong>";
+  $("stageText").innerHTML = turn+" · "+esc(st.label);
+  const our = S.first==="1"?"F":"S"; let a=S.ally.length,e=S.enemy.length, cur=false;
+  $("order").innerHTML = ORDER.map(s=>{ const mine=s===our; let done; if(mine){done=a>0;if(done)a--;}else{done=e>0;if(done)e--;}
+    let c = (mine?"a":"e")+(done?" done":""); if(!done&&!cur){c+=" cur";cur=true;} return `<i class="${c}"></i>`; }).join("");
+}
+function renderGrid(){
+  const taken = new Set([...S.ally,...S.enemy,...S.ban]);
+  const q = S.q.trim().toLowerCase();
+  const list = S.heroes.filter(h=>!q || h.name.toLowerCase().includes(q) || initials(h.name).startsWith(q) || (h.raw.name||"").includes(q));
+  $("grid").innerHTML = list.map(h=>`<button class="h${taken.has(h.id)&&S.target!=="pool"?" taken":""}${S.pool.has(h.id)?" pool":""}" data-id="${h.id}" title="${esc(h.name)}">${heroImg(h)}<span class="nm">${esc(h.name)}</span></button>`).join("") || `<p class="status">No hero matches “${esc(S.q)}”.</p>`;
+}
+const initials = n => n.split(/[\s-]+/).map(w=>w[0]).join("").toLowerCase();
+function renderSugs(){
+  if(!S.heroes.length) return;
+  const {st,out} = score();
+  const title = st.next==="enemy" ? "Best picks for your next turn" : "Best picks right now";
+  $("sugTitle").textContent = title + (S.pos!=="any" ? " · pos "+S.pos : "");
+  const missing = S.enemy.filter(id=>!S.mu.has(id));
+  if(S.ally.length>=5){ $("sugs").innerHTML = `<li class="empty">Your team is locked in. Start a new draft when the next game begins.</li>`; return; }
+  if(!out.length){ $("sugs").innerHTML = `<li class="empty">No heroes left for this filter. ${S.poolOnly?"Add more heroes to your pool or turn off “My pool only”.":"Try a different position."}</li>`; return; }
+  $("sugs").innerHTML = (missing.length?`<li class="empty">Fetching matchups for ${missing.length} enemy pick${missing.length>1?"s":""}…</li>`:"") + out.slice(0,10).map((r,i)=>{
+    const tags = [];
+    tags.push(`<span class="tag ${r.base>=1?"good":r.base<=-1?"bad":""}">${pct(r.b.wr)} WR</span>`);
+    if(S.enemy.length) tags.push(`<span class="tag ${r.counter>=1?"good":r.counter<=-1?"bad":""}">${pp(r.counter)} vs enemy</span>`);
+    if(r.blind!=null) tags.push(`<span class="tag ${r.blind<.6?"gold":r.blind>1.5?"bad":""}">${r.blind<.6?"blind-safe":"counterable "+r.blind.toFixed(1)}</span>`);
+    r.fit.notes.forEach(n=>tags.push(`<span class="tag ${/too many/.test(n)?"bad":"good"}">${esc(n)}</span>`));
+    if(S.pool.has(r.C.id)) tags.push(`<span class="tag gold">★ pool</span>`);
+    const vsRows = r.vs.filter(x=>x.a).sort((a,b)=>b.a.d-a.a.d).map(x=>`<span>${esc(x.E.name)}</span><span class="${x.a.d>=0?"p":"n"}">${pp(x.a.d)}</span><span>${x.a.g.toLocaleString()} games</span>`).join("");
+    return `<li class="sug"><span class="rk">${i+1}</span><span class="pic">${heroImg(r.C)}</span>
+      <div class="main"><div class="name">${esc(r.C.name)}</div><div class="why">${tags.join("")}</div></div>
+      <div class="score">${pp(r.total)}<small>score</small></div>
+      <details class="more" data-build="${r.C.id}"${S.openBuild.has(r.C.id)?" open":""}><summary>Build${vsRows?" & matchups":""}</summary>
+        ${S.openBuild.has(r.C.id)?buildHTML(r.C):""}
+        ${vsRows?`<div class="vs">${vsRows}</div>`:""}</details></li>`;
+  }).join("");
+}
+function renderAll(){ const st = stageInfo(); renderBoard(st); renderGrid(); renderSugs(); syncTarget(st); }
+function syncTarget(st){
+  document.querySelectorAll(".target button").forEach(b=>b.setAttribute("aria-pressed", String(b.dataset.t===S.target)));
+}
+function setStatus(t,err){ const s=$("status"); s.textContent=t; s.classList.toggle("err",!!err); }
+function ago(t){ const m=Math.round((Date.now()-t)/60000); return m<1?"just now":m<60?m+" min ago":Math.round(m/60)+" h ago"; }
+
+/* ---------- actions ---------- */
+function add(id){
+  if(S.target==="pool"){ S.pool.has(id)?S.pool.delete(id):S.pool.add(id); store.set("pool",[...S.pool]); renderAll(); return; }
+  if([...S.ally,...S.enemy,...S.ban].includes(id)) return;
+  const list = S[S.target];
+  if(S.target!=="ban" && list.length>=5) return;
+  list.push(id); S.log.push([S.target,id]);
+  if(S.target==="enemy") matchups(id).then(()=>renderSugs());
+  if(S.target!=="ban"){ const st = stageInfo(); if(st.next) S.target = st.next; }
+  S.q=""; $("q").value="";
+  renderAll();
+}
+function remove(side,id){
+  S[side] = S[side].filter(x=>x!==id); S.log = S.log.filter(([s,i])=>!(s===side&&i===id));
+  renderAll();
+}
+document.addEventListener("click",e=>{
+  const h = e.target.closest(".h"); if(h){ add(+h.dataset.id); return; }
+  const rm = e.target.closest("[data-rm]"); if(rm){ const [s,i]=rm.dataset.rm.split(":"); remove(s,+i); return; }
+  const tg = e.target.closest("[data-target]"); if(tg){ S.target=tg.dataset.target; renderAll(); $("q").focus(); return; }
+  const t = e.target.closest(".target button"); if(t){ S.target=t.dataset.t; renderAll(); return; }
+});
+document.addEventListener("toggle",e=>{
+  const d = e.target; if(!d.dataset || !d.dataset.build) return;
+  const id = +d.dataset.build;
+  if(d.open && !S.openBuild.has(id)){ S.openBuild.add(id); loadBuild(id); }
+  else if(!d.open && S.openBuild.has(id)){ S.openBuild.delete(id); }
+}, true);
+$("q").addEventListener("input",e=>{ S.q=e.target.value; renderGrid(); });
+$("q").addEventListener("keydown",e=>{ if(e.key==="Enter"){ const f=$("grid").querySelector(".h:not(.taken)"); if(f) add(+f.dataset.id); } });
+$("undo").onclick=()=>{ const l=S.log.pop(); if(l){ S[l[0]]=S[l[0]].filter(x=>x!==l[1]); S.target=l[0]; renderAll(); } };
+$("reset").onclick=()=>{ S.ally=[];S.enemy=[];S.ban=[];S.log=[]; S.target = S.first==="1"?"ally":"enemy"; renderAll(); };
+for(const [id,key] of [["bracket","bracket"],["pos","pos"],["first","first"]]){
+  $(id).value = S[key];
+  $(id).addEventListener("change",e=>{ S[key]=e.target.value; store.set(key,S[key]);
+    if(key==="first" && !S.log.length) S.target = S.first==="1"?"ally":"enemy";
+    renderAll(); });
+}
+$("poolOnly").setAttribute("aria-pressed",String(S.poolOnly));
+$("poolOnly").onclick=()=>{ S.poolOnly=!S.poolOnly; store.set("poolOnly",S.poolOnly); $("poolOnly").setAttribute("aria-pressed",String(S.poolOnly)); renderSugs(); };
+S.target = S.first==="1"?"ally":"enemy";
+renderAll(); loadStats();
+</script>
+</body>
+</html>
