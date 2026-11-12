@@ -161,5 +161,5 @@ a{color:#FFF7EC}a:hover{color:#E3EFFC}
 </div>
 
 
-<script>document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(a&&!/^#|^mailto|^http/.test(a.getAttribute('href'))){try{sessionStorage.setItem('pnFrom','#2E86E0')}catch(err){}}})</script></body>
+<script>document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a)return;var h=a.getAttribute('href');if(/^#|^mailto|^https?:/.test(h))return;try{sessionStorage.setItem('pnFrom','#2E86E0')}catch(err){}if(!/[?&]f=/.test(h)){var i=h.indexOf('#'),base=i<0?h:h.slice(0,i),hash=i<0?'':h.slice(i);a.setAttribute('href',base+(base.indexOf('?')<0?'?':'&')+'f=2E86E0'+hash)}},true)</script></body>
 </html>
