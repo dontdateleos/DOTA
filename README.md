@@ -1,5 +1,7 @@
-# Draft Edge
+# piñata
 
-Dota 2 draft helper for Ranked All Pick. Ranks hero picks by win rate at your rank, matchups against the enemy picks, team gaps and pick stage, and shows item builds. Data comes live from the [OpenDota API](https://docs.opendota.com/).
+A creative space in Brisbane, for the slow pursuit of things worth keeping.
 
-Live at https://dontdateleos.github.io/DOTA/
+This repo is the static website: `index.html` plus `fonts/`, `assets/`, the favicon and the share image. It's served by GitHub Pages straight from `main`, no build step.
+
+The old Dota draft helper lives on the `dota-archive` branch.
