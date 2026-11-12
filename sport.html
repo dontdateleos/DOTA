@@ -16,7 +16,7 @@
  
 <title>Piñata · Sport</title>
 <style>@font-face{font-family:"Gloock";src:url(fonts/gloock-latin-400-normal.woff2)}@font-face{font-family:"DM Mono";src:url(fonts/dm-mono-latin-500-normal.woff2)}@font-face{font-family:"DM Sans";src:url(fonts/dm-sans-latin-400-normal.woff2)}@font-face{font-family:Geist;font-weight:500;src:url(fonts/geist-latin-500-normal.woff2)}@font-face{font-family:Geist;font-weight:700;src:url(fonts/geist-latin-700-normal.woff2)}@font-face{font-family:Geist;font-weight:800;src:url(fonts/geist-latin-800-normal.woff2)}
-.pn-peek{overflow:hidden}.pn-burst{display:none}.pn-rain{display:none}.pn-shards{display:none}
+.pn-peek{overflow:hidden}.pn-burst{display:none}.pn-pills{display:none}.pn-rain{display:none}.pn-shards{display:none}
 @media (prefers-reduced-motion: no-preference){
 @supports (animation-timeline: view()){
 .pn-stage{height:220vh;view-timeline:--pn block}
@@ -24,8 +24,13 @@
 .pn-inner{padding-top:clamp(8px,2vw,24px)!important;padding-bottom:clamp(8px,2vw,24px)!important}
 .pn-peek{overflow:visible;max-width:min(300px,32vh)!important}
 .pn-whole{display:none}.pn-shards{display:inline}
-.pn-sh{animation:pnShard linear both;animation-timeline:--pn;animation-range:contain 8% contain 62%}
-@keyframes pnShard{0%{transform:none;opacity:1;animation-timing-function:cubic-bezier(.1,.7,.3,1)}22%{transform:translate(var(--tx),var(--ty1)) rotate(var(--r1));opacity:1;animation-timing-function:cubic-bezier(.5,0,.9,.6)}80%{opacity:1}100%{transform:translate(var(--tx2),var(--ty2)) rotate(var(--r2));opacity:0}}
+.pn-sh{--k:1;animation:pnPiece linear both;animation-timeline:--pn;animation-range:contain 6% contain 40%}
+@keyframes pnPiece{0%{transform:none;animation-timing-function:cubic-bezier(.15,.7,.3,1)}45%{transform:translate(calc(var(--tx)*1.2*var(--k)),calc(var(--ty) - 220px)) rotate(calc(var(--r)*1.5)) scale(calc(var(--s) * var(--m,1)));animation-timing-function:cubic-bezier(.5,0,.7,1)}78%{transform:translate(calc(var(--tx)*var(--k)),calc(var(--ty) + 40px)) rotate(var(--r)) scale(calc(var(--s) * var(--m,1)))}100%{transform:translate(calc(var(--tx)*var(--k)),var(--ty)) rotate(var(--r)) scale(calc(var(--s) * var(--m,1)))}}
+.pn-pills{display:block;position:absolute;inset:0;z-index:3;pointer-events:none}
+.pn-pill{position:absolute;left:calc(50% + var(--dx) * var(--k,1));translate:-50% -50%;rotate:var(--rot);pointer-events:auto;font-family:Geist,system-ui,sans-serif;font-weight:800;font-size:clamp(17px,1.9vw,24px);letter-spacing:-.05em;line-height:1;padding:.5em 1em .55em;border-radius:999px;border:3px solid #FFFFFF;text-decoration:none;white-space:nowrap;box-shadow:0 10px 18px -10px rgba(0,0,0,.45);opacity:0;scale:.5;animation:pnPill linear both;animation-timeline:--pn;animation-range:contain 30% contain 42%;transition:transform .25s cubic-bezier(.3,1.4,.5,1)}
+.pn-pill:hover{transform:translateY(-4px)}
+@keyframes pnPill{to{opacity:1;scale:1}}
+@media (max-width:600px){.pn-sh,.pn-pill{--k:.5}.pn-sh{--m:.72}}
 .pn-burst{display:block;position:absolute;left:50%;top:61%;width:0;height:0;z-index:2}
 .pn-cf{position:absolute;left:0;top:0;opacity:0;animation:pnConf linear both;animation-timeline:--pn;animation-range:contain 7% contain 80%}
 @keyframes pnConf{0%{opacity:0;transform:translate(0,0) rotate(0) scale(.4)}2%{opacity:1}25%{transform:translate(var(--x),var(--y)) rotate(calc(var(--r)*.4)) scale(1);animation-timing-function:ease-in}85%{opacity:1}100%{opacity:0;transform:translate(calc(var(--x)*1.25),var(--y2)) rotate(var(--r))}}
